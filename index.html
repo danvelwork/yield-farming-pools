@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Yield Pools</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            text-align: center;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        th, td {
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #f4f4f4;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 20px;
+        }
+
+        .pagination button, .pagination span {
+            padding: 10px 15px;
+            margin: 0 3px;
+            background-color: #333;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        .pagination button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .pagination button:hover:not(:disabled) {
+            background-color: #555;
+        }
+
+        .pagination span {
+            cursor: default;
+            color: #888;
+        }
+
+        .loading {
+            font-size: 1.5em;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Crypto Yield Pools</h1>
+    <div id="table-container"></div>
+    <div class="pagination" id="pagination"></div>
+    <div class="loading" id="loading">Loading data...</div>
+
+    <script>
+        const apiUrl = "https://yields.llama.fi/pools";
+        let poolData = [];
+        let currentPage = 1;
+        const rowsPerPage = 30;
+
+        // Fetch data from API
+        async function fetchData() {
+            try {
+                const response = await fetch(apiUrl);
+                const data = await response.json();
+                poolData = data.data; // Assuming the API response has a "data" key
+                document.getElementById("loading").style.display = "none"; // Hide loading message
+                renderTable();
+                renderPagination();
+            } catch (error) {
+                console.error("Error fetching data:", error);
+                document.getElementById("loading").textContent = "Error loading data. Please try again.";
+            }
+        }
+
+        // Render the table with current page data
+        function renderTable() {
+            const tableContainer = document.getElementById("table-container");
+            tableContainer.innerHTML = ''; // Clear previous table
+
+            // Create table element
+            const table = document.createElement("table");
+            const thead = document.createElement("thead");
+            const tbody = document.createElement("tbody");
+
+            // Table headers
+            const headers = ["Chain", "Project", "Symbol", "TVL (USD)", "Pool", "30-Day APY Mean", "Mu", "Sigma", "Count"];
+            const trHead = document.createElement("tr");
+            headers.forEach(header => {
+                const th = document.createElement("th");
+                th.textContent = header;
+                trHead.appendChild(th);
+            });
+            thead.appendChild(trHead);
+
+            // Get data for current page
+            const start = (currentPage - 1) * rowsPerPage;
+            const end = start + rowsPerPage;
+            const currentPageData = poolData.slice(start, end);
+
+            // Populate table rows
+            currentPageData.forEach(item => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td>${item.chain}</td>
+                    <td>${item.project}</td>
+                    <td>${item.symbol}</td>
+                    <td>${item.tvlUsd ? item.tvlUsd.toLocaleString() : "N/A"}</td>
+                    <td>${item.pool}</td>
+                    <td>${item.apyMean30d ? item.apyMean30d.toFixed(2) : "N/A"}%</td>
+                    <td>${item.mu ? item.mu.toFixed(4) : "N/A"}</td>
+                    <td>${item.sigma ? item.sigma.toFixed(4) : "N/A"}</td>
+                    <td>${item.count ? item.count : "N/A"}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            table.appendChild(thead);
+            table.appendChild(tbody);
+            tableContainer.appendChild(table);
+        }
+
+        // Render pagination controls
+        function renderPagination() {
+            const pagination = document.getElementById("pagination");
+            pagination.innerHTML = ''; // Clear previous pagination
+
+            const totalPages = Math.ceil(poolData.length / rowsPerPage);
+            const maxVisiblePages = 5; // Show 5 page numbers at a time
+
+            // Previous button
+            const prevButton = document.createElement("button");
+            prevButton.textContent = "<";
+            prevButton.disabled = currentPage === 1;
+            prevButton.onclick = () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    renderTable();
+                    renderPagination();
+                }
+            };
+            pagination.appendChild(prevButton);
+
+            // Show first page button if current page is far
+            if (currentPage > 2) {
+                const firstButton = document.createElement("button");
+                firstButton.textContent = "1";
+                firstButton.onclick = () => {
+                    currentPage = 1;
+                    renderTable();
+                    renderPagination();
+                };
+                pagination.appendChild(firstButton);
+
+                if (currentPage > 3) {
+                    const dots = document.createElement("span");
+                    dots.textContent = "...";
+                    pagination.appendChild(dots);
+                }
+            }
+
+            // Page numbers: dynamically generate based on current page
+            let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+            let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+            if (endPage - startPage < maxVisiblePages - 1) {
+                startPage = Math.max(1, endPage - maxVisiblePages + 1);
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+                const pageButton = document.createElement("button");
+                pageButton.textContent = i;
+                pageButton.disabled = i === currentPage;
+                pageButton.onclick = () => {
+                    currentPage = i;
+                    renderTable();
+                    renderPagination();
+                };
+                pagination.appendChild(pageButton);
+            }
+
+            // Show last page button if current page is far from the last
+            if (currentPage < totalPages - 1) {
+                if (currentPage < totalPages - 2) {
+                    const dots = document.createElement("span");
+                    dots.textContent = "...";
+                    pagination.appendChild(dots);
+                }
+
+                const lastButton = document.createElement("button");
+                lastButton.textContent = totalPages;
+                lastButton.onclick = () => {
+                    currentPage = totalPages;
+                    renderTable();
+                    renderPagination();
+                };
+                pagination.appendChild(lastButton);
+            }
+
+            // Next button
+            const nextButton = document.createElement("button");
+            nextButton.textContent = ">";
+            nextButton.disabled = currentPage === totalPages;
+            nextButton.onclick = () => {
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    renderTable();
+                    renderPagination();
+                }
+            };
+            pagination.appendChild(nextButton);
+        }
+
+        // Load data when the page is ready
+        fetchData();
+    </script>
+
+</body>
+</html>
